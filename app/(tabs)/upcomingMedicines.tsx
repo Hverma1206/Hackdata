@@ -20,7 +20,7 @@ interface UpcomingMedicinesProps {
 }
 
 const UpcomingMedicinesComponent: React.FC<UpcomingMedicinesProps> = ({
-  medicines,
+  medicines = [],
 }) => {
   const pendingMedicines = medicines.filter((med) => med.status === 'pending');
 
