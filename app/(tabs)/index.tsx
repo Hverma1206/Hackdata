@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   StatusBar,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useRouter } from 'expo-router';
 
 // If using react-navigation
 // import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -23,6 +24,7 @@ interface Medication {
 }
 
 interface TimeSlot {
+  id: string; // Add ID for identifying slots
   time: string;
   title: string;
   pills: Array<{
@@ -31,9 +33,11 @@ interface TimeSlot {
   }>;
   completed?: boolean;
   missed?: boolean;
+  showOptions?: boolean; // For dropdown visibility
 }
 
 const HomeScreen: React.FC = () => {
+  const router = useRouter();
   // Current date
   const currentDate = new Date();
   const dateOptions: Intl.DateTimeFormatOptions = {
@@ -60,8 +64,10 @@ const HomeScreen: React.FC = () => {
     },
   ];
 
-  const todaySchedule: TimeSlot[] = [
+  // Updated todaySchedule with IDs
+  const [todaySchedule, setTodaySchedule] = useState<TimeSlot[]>([
     {
+      id: '1',
       time: '8:00 AM',
       title: 'Morning Medications',
       pills: [
@@ -71,19 +77,24 @@ const HomeScreen: React.FC = () => {
       completed: true,
     },
     {
+      id: '2',
       time: '9:00 AM',
       title: 'Blood Pressure Meds',
       pills: [
         { name: 'Lisinopril', dotColor: 'blue' },
         { name: 'Vitamin D3', dotColor: 'green' },
       ],
+      showOptions: false,
     },
     {
+      id: '3',
       time: '1:00 PM',
       title: 'Lunch Medications',
       pills: [{ name: 'Metformin', dotColor: 'blue' }],
+      showOptions: false,
     },
     {
+      id: '4',
       time: '8:00 PM',
       title: 'Evening Medications',
       pills: [
@@ -91,8 +102,36 @@ const HomeScreen: React.FC = () => {
         { name: 'Amlodipine', dotColor: 'red' },
         { name: 'Vitamin C', dotColor: 'green' },
       ],
+      showOptions: false,
     },
-  ];
+  ]);
+
+  // Function to toggle options dropdown
+  const toggleOptions = (id: string) => {
+    setTodaySchedule(schedule =>
+      schedule.map(slot => ({
+        ...slot,
+        showOptions: slot.id === id ? !slot.showOptions : false
+      }))
+    );
+  };
+
+  // Function to mark medication as taken or missed
+  const updateMedicationStatus = (id: string, status: 'taken' | 'missed') => {
+    setTodaySchedule(schedule =>
+      schedule.map(slot => {
+        if (slot.id === id) {
+          return {
+            ...slot,
+            completed: status === 'taken',
+            missed: status === 'missed',
+            showOptions: false,
+          };
+        }
+        return slot;
+      })
+    );
+  };
 
   // Render medication card
   const renderMedicationCard = (medication: Medication, index: number) => (
@@ -119,7 +158,7 @@ const HomeScreen: React.FC = () => {
     </TouchableOpacity>
   );
 
-  // Render time slot
+  // Updated render time slot function with dropdown buttons
   const renderTimeSlot = (slot: TimeSlot, index: number) => {
     const cardStyle = [
       styles.timeCard,
@@ -132,30 +171,91 @@ const HomeScreen: React.FC = () => {
         <View style={styles.timeIndicator}>
           <Text style={styles.timeText}>{slot.time}</Text>
           <View style={styles.timeLine}>
-            <View style={styles.timeCircle} />
+            <View style={[styles.timeCircle, 
+              slot.completed && styles.completedCircle,
+              slot.missed && styles.missedCircle
+            ]} />
           </View>
         </View>
 
-        <TouchableOpacity style={cardStyle} activeOpacity={0.7}>
-          <Text style={styles.timeCardTitle}>{slot.title}</Text>
-          <View style={styles.pills}>
-            {slot.pills.map((pill, pillIndex) => (
-              <View key={pillIndex} style={styles.pill}>
-                <View
-                  style={[
-                    styles.pillDot,
-                    pill.dotColor === 'blue' && styles.blueDot,
-                    pill.dotColor === 'red' && styles.redDot,
-                    pill.dotColor === 'green' && styles.greenDot,
-                  ]}
-                />
-                <Text style={styles.pillText}>{pill.name}</Text>
-              </View>
-            ))}
-          </View>
-        </TouchableOpacity>
+        <View style={styles.slotContainer}>
+          <TouchableOpacity 
+            style={cardStyle} 
+            activeOpacity={0.7}
+            onPress={() => toggleOptions(slot.id)}
+          >
+            <View style={styles.cardHeader}>
+              <Text style={styles.timeCardTitle}>{slot.title}</Text>
+              {slot.completed && (
+                <View style={styles.statusIndicator}>
+                  <Text style={styles.statusText}>Taken ✓</Text>
+                </View>
+              )}
+              {slot.missed && (
+                <View style={[styles.statusIndicator, styles.missedIndicator]}>
+                  <Text style={styles.statusText}>Missed ✗</Text>
+                </View>
+              )}
+            </View>
+            
+            <View style={styles.pills}>
+              {slot.pills.map((pill, pillIndex) => (
+                <View key={pillIndex} style={styles.pill}>
+                  <View
+                    style={[
+                      styles.pillDot,
+                      pill.dotColor === 'blue' && styles.blueDot,
+                      pill.dotColor === 'red' && styles.redDot,
+                      pill.dotColor === 'green' && styles.greenDot,
+                    ]}
+                  />
+                  <Text style={styles.pillText}>{pill.name}</Text>
+                </View>
+              ))}
+            </View>
+          </TouchableOpacity>
+
+          {/* Dropdown options */}
+          {slot.showOptions && (
+            <View style={styles.optionsDropdown}>
+              <TouchableOpacity 
+                style={styles.optionButton}
+                onPress={() => updateMedicationStatus(slot.id, 'taken')}
+              >
+                <LinearGradient
+                  colors={['#10b981', '#059669']}
+                  style={styles.optionGradient}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                >
+                  <Text style={styles.optionText}>Mark as Taken</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={styles.optionButton}
+                onPress={() => updateMedicationStatus(slot.id, 'missed')}
+              >
+                <LinearGradient
+                  colors={['#ef4444', '#dc2626']}
+                  style={styles.optionGradient}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                >
+                  <Text style={styles.optionText}>Mark as Missed</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
       </View>
     );
+  };
+
+  // Ensure handleScanPress is properly defined
+  const handleScanPress = () => {
+    console.log('Navigating to scan page');  // Add logging for debugging
+    router.push('/scanPage');
   };
 
   return (
@@ -171,9 +271,12 @@ const HomeScreen: React.FC = () => {
         >
           <View style={styles.headerTop}>
             <Text style={styles.logo}>MediSure</Text>
-            <View style={styles.profile}>
+            <TouchableOpacity 
+              style={styles.profile}
+              onPress={() => router.push('/profile')}
+            >
               <Text style={styles.profileText}>JS</Text>
-            </View>
+            </TouchableOpacity>
           </View>
           <Text style={styles.greeting}>Good morning, John</Text>
           <Text style={styles.date}>{formattedDate}</Text>
@@ -201,19 +304,23 @@ const HomeScreen: React.FC = () => {
         <View style={styles.todaySchedule}>
           {todaySchedule.map(renderTimeSlot)}
         </View>
-
-        {/* Add Button - Floating Action Button */}
-        <TouchableOpacity activeOpacity={0.8}>
-          <LinearGradient
-            colors={['#4361ee', '#3a0ca3']}
-            style={styles.fab}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-          >
-            <Text style={styles.fabText}>+</Text>
-          </LinearGradient>
-        </TouchableOpacity>
       </ScrollView>
+
+      {/* Add Button - Floating Action Button */}
+      <TouchableOpacity 
+        activeOpacity={0.8} 
+        style={styles.fabContainer}
+        onPress={handleScanPress}  // This is already correctly set
+      >
+        <LinearGradient
+          colors={['#4361ee', '#3a0ca3']}
+          style={styles.fab}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
+        >
+          <Text style={styles.fabText}>+</Text>
+        </LinearGradient>
+      </TouchableOpacity>
 
       {/* Bottom Navigation */}
       <View style={styles.bottomNav}>
@@ -221,17 +328,26 @@ const HomeScreen: React.FC = () => {
           <Text style={[styles.navIcon, styles.navActiveText]}>🏠</Text>
           <Text style={[styles.navText, styles.navActiveText]}>Home</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem}>
-          <Text style={styles.navIcon}>💊</Text>
-          <Text style={styles.navText}>Meds</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem}>
+        
+        <TouchableOpacity 
+          style={styles.navItem}
+          onPress={() => router.push('/schedule')}
+        >
           <Text style={styles.navIcon}>📅</Text>
           <Text style={styles.navText}>Calendar</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem}>
+        
+        <TouchableOpacity 
+          style={styles.navItem}
+          onPress={() => router.push('/reports')}
+        >
           <Text style={styles.navIcon}>📊</Text>
           <Text style={styles.navText}>Reports</Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity style={styles.navItem}>
+          <Text style={styles.navIcon}>👥</Text>
+          <Text style={styles.navText}>Care Team</Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -434,6 +550,14 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     elevation: 3,
   },
+  completedCircle: {
+    backgroundColor: '#10b981',
+    shadowColor: '#10b981',
+  },
+  missedCircle: {
+    backgroundColor: '#ef4444',
+    shadowColor: '#ef4444',
+  },
   timeCard: {
     flex: 1,
     backgroundColor: 'white',
@@ -448,34 +572,71 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#f1f5f9',
   },
-  completedCard: {
-    borderLeftWidth: 4,
-    borderLeftColor: '#10b981',
-    backgroundColor: '#f0fdf4',
+  cardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
-  missedCard: {
-    borderLeftWidth: 4,
-    borderLeftColor: '#ef4444',
-    backgroundColor: '#fef2f2',
+  statusIndicator: {
+    backgroundColor: '#10b981',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    shadowColor: '#10b981',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
   },
-  timeCardTitle: {
+  missedIndicator: {
+    backgroundColor: '#ef4444',
+    shadowColor: '#ef4444',
+  },
+  statusText: {
+    color: 'white',
     fontWeight: '600',
-    fontSize: 16,
-    color: '#1e293b',
+    fontSize: 12,
+  },
+  slotContainer: {
+    flex: 1,
+  },
+  optionsDropdown: {
+    marginLeft: 18,
+    marginTop: 8,
+    gap: 8,
+  },
+  optionButton: {
+    borderRadius: 12,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  optionGradient: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  optionText: {
+    color: 'white',
+    fontWeight: '600',
+    fontSize: 14,
   },
   pills: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    marginTop: 14,
-    gap: 10,
+    gap: 8,
+    marginTop: 15,
   },
   pill: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#f1f5f9',
     borderRadius: 20,
-    paddingVertical: 8,
-    paddingHorizontal: 14,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
     borderWidth: 1,
     borderColor: 'rgba(226, 232, 240, 0.6)',
     shadowColor: '#000',
@@ -483,17 +644,19 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.03,
     shadowRadius: 4,
     elevation: 1,
+    maxWidth: '100%',
   },
   pillDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    marginRight: 8,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginRight: 6,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
+    shadowRadius: 2,
+    elevation: 1,
+    flexShrink: 0,
   },
   blueDot: {
     backgroundColor: '#4361ee',
@@ -510,12 +673,9 @@ const styles = StyleSheet.create({
     color: '#334155',
   },
   fab: {
-    position: 'absolute',
-    bottom: 80,
-    right: 24,
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+    width: 70,
+    height: 70,
+    borderRadius: 35,
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#4361ee',
@@ -525,9 +685,15 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
   fabText: {
-    color: 'white',
-    fontSize: 28,
+    color: '#ffffff',
+    fontSize: 36,
     fontWeight: '300',
+  },
+  fabContainer: {
+    position: 'absolute',
+    bottom: 63,  // Changed from 100 to 120 to move it higher
+    right: 171,
+    zIndex: 999,
   },
   bottomNav: {
     position: 'absolute',
