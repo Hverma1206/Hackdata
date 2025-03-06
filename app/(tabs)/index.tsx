@@ -1,202 +1,237 @@
-import { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet, SafeAreaView, Image } from 'react-native';
-import { Calendar, Home, PieChart, List, Plus } from 'lucide-react-native';
-import { useRouter } from 'expo-router';
-import Animated, { useAnimatedStyle, withSpring, withSequence } from 'react-native-reanimated';
-import { useSharedValue } from 'react-native-reanimated';
+import React from 'react';
+import {
+  View,
+  Text,
+  ScrollView,
+  TouchableOpacity,
+  StyleSheet,
+  SafeAreaView,
+  StatusBar,
+} from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 
-const router = useRouter();
+// If using react-navigation
+// import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+// const Tab = createBottomTabNavigator();
 
-declare global {
-  var medicineList: {
-    id: string;
-    name: string;
-    dosage: string;
-    schedule: string;
-    status: 'pending' | 'taken' | 'completed' | 'missed';
-    time: string;
-    image: string;
-    countdown?: string;
-  }[];
-}
-
-interface Medicine {
-  id: string;
+// Types
+interface Medication {
   name: string;
   dosage: string;
+  icon: string;
+  status: string;
+}
+
+interface TimeSlot {
   time: string;
-  status: 'pending' | 'taken' | 'completed' | 'missed';
-  schedule?: string;
-  countdown?: string;
+  title: string;
+  pills: Array<{
+    name: string;
+    dotColor: string;
+  }>;
+  completed?: boolean;
+  missed?: boolean;
 }
 
-if (typeof global.medicineList === 'undefined') {
-  global.medicineList = [
-    { id: '1', name: 'Lisinopril', dosage: '10mg • 1 pill', schedule: 'Morning', status: 'pending', time: '9:00 AM', image: '', countdown: '15 min' },
-    { id: '2', name: 'Vitamin D3', dosage: '1000IU • 1 capsule', schedule: 'Morning', status: 'pending', time: '9:00 AM', image: '', countdown: '15 min' },
-    { id: '3', name: 'Metformin', dosage: '500mg • 1 tablet', schedule: 'Morning', status: 'completed', time: '8:00 AM', image: '', countdown: '' },
-    { id: '4', name: 'Aspirin', dosage: '81mg • 1 tablet', schedule: 'Morning', status: 'completed', time: '8:00 AM', image: '', countdown: '' },
-    { id: '5', name: 'Metformin', dosage: '500mg • 1 tablet', schedule: 'Afternoon', status: 'pending', time: '1:00 PM', image: '', countdown: '' },
-    { id: '6', name: 'Metformin', dosage: '500mg • 1 tablet', schedule: 'Evening', status: 'pending', time: '8:00 PM', image: '', countdown: '' },
-    { id: '7', name: 'Amlodipine', dosage: '5mg • 1 tablet', schedule: 'Evening', status: 'pending', time: '8:00 PM', image: '', countdown: '' },
-    { id: '8', name: 'Vitamin C', dosage: '500mg • 1 tablet', schedule: 'Evening', status: 'pending', time: '8:00 PM', image: '', countdown: '' },
-  ];
-}
-
-const UpcomingMedicinesComponent = ({ medicines }: { medicines: Medicine[] }) => {
-  // Filter medicines for upcoming doses (9:00 AM)
-  const upcomingMeds = medicines.filter(med => med.time === '9:00 AM' && med.status === 'pending');
-  
-  return (
-    <View style={styles.nextDoseContainer}>
-      <View style={styles.nextDoseTitle}>
-        <Text style={styles.nextDoseHeading}>Upcoming Dose</Text>
-        <View style={styles.timePill}>
-          <Text style={styles.timePillText}>9:00 AM</Text>
-        </View>
-      </View>
-      
-      {upcomingMeds.map(med => (
-        <View key={med.id} style={styles.medicationCard}>
-          <View style={styles.medIcon}>
-            <Text style={styles.medIconText}>💊</Text>
-          </View>
-          <View style={styles.medDetails}>
-            <Text style={styles.medName}>{med.name}</Text>
-            <Text style={styles.medDosage}>{med.dosage}</Text>
-          </View>
-          <View style={styles.medStatus}>
-            <Text style={styles.medStatusText}>Take in {med.countdown}</Text>
-          </View>
-        </View>
-      ))}
-    </View>
-  );
-};
-
-const TimeSlot = ({ time, medicines }: { time: string; medicines: Medicine[] }) => {
-  const filteredMeds = medicines.filter(med => med.time === time);
-  const status = time === '8:00 AM' ? 'completed' : 'pending';
-  
-  return (
-    <View style={styles.timeSlot}>
-      <View style={styles.timeIndicator}>
-        <Text style={styles.timeText}>{time}</Text>
-        <View style={styles.timeLine}>
-          <View style={styles.timeCircle} />
-        </View>
-      </View>
-      <View style={[
-        styles.timeCard, 
-        status === 'completed' && styles.completedTimeCard,
-      ]}>
-        <Text style={styles.timeCardTitle}>
-          {time === '8:00 AM' ? 'Morning Medications' : 
-           time === '9:00 AM' ? 'Blood Pressure Meds' : 
-           time === '1:00 PM' ? 'Lunch Medications' : 'Evening Medications'}
-        </Text>
-        <View style={styles.pills}>
-          {filteredMeds.map(med => {
-            let dotColor;
-            if (med.name === 'Metformin' || med.name === 'Lisinopril') dotColor = styles.blueDot;
-            else if (med.name === 'Aspirin' || med.name === 'Amlodipine') dotColor = styles.redDot;
-            else dotColor = styles.greenDot;
-            
-            return (
-              <View key={med.id} style={styles.pill}>
-                <View style={[styles.pillDot, dotColor]} />
-                <Text style={styles.pillText}>{med.name}</Text>
-              </View>
-            );
-          })}
-        </View>
-      </View>
-    </View>
-  );
-};
-
-const HomeScreen = () => {
-  const [medicines, setMedicines] = useState<Medicine[]>(global.medicineList as Medicine[]);
-  const [activeTab, setActiveTab] = useState('home');
-  const headerScale = useSharedValue(1);
+const HomeScreen: React.FC = () => {
+  // Current date
   const currentDate = new Date();
-  const formattedDate = currentDate.toLocaleDateString('en-US', { 
-    weekday: 'long', 
-    month: 'long', 
-    day: 'numeric', 
-    year: 'numeric' 
-  });
+  const dateOptions: Intl.DateTimeFormatOptions = {
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
+  };
+  const formattedDate = currentDate.toLocaleDateString('en-US', dateOptions);
 
-  useEffect(() => {
-    headerScale.value = withSequence(
-      withSpring(1.05),
-      withSpring(1)
+  // Mock data
+  const upcomingMedications: Medication[] = [
+    {
+      name: 'Lisinopril',
+      dosage: '10mg • 1 pill',
+      icon: '💊',
+      status: 'Take in 15 min',
+    },
+    {
+      name: 'Vitamin D3',
+      dosage: '1000IU • 1 capsule',
+      icon: '💊',
+      status: 'Take in 15 min',
+    },
+  ];
+
+  const todaySchedule: TimeSlot[] = [
+    {
+      time: '8:00 AM',
+      title: 'Morning Medications',
+      pills: [
+        { name: 'Metformin', dotColor: 'blue' },
+        { name: 'Aspirin', dotColor: 'red' },
+      ],
+      completed: true,
+    },
+    {
+      time: '9:00 AM',
+      title: 'Blood Pressure Meds',
+      pills: [
+        { name: 'Lisinopril', dotColor: 'blue' },
+        { name: 'Vitamin D3', dotColor: 'green' },
+      ],
+    },
+    {
+      time: '1:00 PM',
+      title: 'Lunch Medications',
+      pills: [{ name: 'Metformin', dotColor: 'blue' }],
+    },
+    {
+      time: '8:00 PM',
+      title: 'Evening Medications',
+      pills: [
+        { name: 'Metformin', dotColor: 'blue' },
+        { name: 'Amlodipine', dotColor: 'red' },
+        { name: 'Vitamin C', dotColor: 'green' },
+      ],
+    },
+  ];
+
+  // Render medication card
+  const renderMedicationCard = (medication: Medication, index: number) => (
+    <TouchableOpacity
+      key={index}
+      style={styles.medicationCard}
+      activeOpacity={0.7}
+    >
+      <View style={styles.medIcon}>
+        <Text style={styles.medIconText}>{medication.icon}</Text>
+      </View>
+      <View style={styles.medDetails}>
+        <Text style={styles.medName}>{medication.name}</Text>
+        <Text style={styles.medDosage}>{medication.dosage}</Text>
+      </View>
+      <LinearGradient
+        colors={['#4361ee', '#3a0ca3']}
+        style={styles.medStatus}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 0 }}
+      >
+        <Text style={styles.medStatusText}>{medication.status}</Text>
+      </LinearGradient>
+    </TouchableOpacity>
+  );
+
+  // Render time slot
+  const renderTimeSlot = (slot: TimeSlot, index: number) => {
+    const cardStyle = [
+      styles.timeCard,
+      slot.completed && styles.completedCard,
+      slot.missed && styles.missedCard,
+    ];
+
+    return (
+      <View key={index} style={styles.timeSlot}>
+        <View style={styles.timeIndicator}>
+          <Text style={styles.timeText}>{slot.time}</Text>
+          <View style={styles.timeLine}>
+            <View style={styles.timeCircle} />
+          </View>
+        </View>
+
+        <TouchableOpacity style={cardStyle} activeOpacity={0.7}>
+          <Text style={styles.timeCardTitle}>{slot.title}</Text>
+          <View style={styles.pills}>
+            {slot.pills.map((pill, pillIndex) => (
+              <View key={pillIndex} style={styles.pill}>
+                <View
+                  style={[
+                    styles.pillDot,
+                    pill.dotColor === 'blue' && styles.blueDot,
+                    pill.dotColor === 'red' && styles.redDot,
+                    pill.dotColor === 'green' && styles.greenDot,
+                  ]}
+                />
+                <Text style={styles.pillText}>{pill.name}</Text>
+              </View>
+            ))}
+          </View>
+        </TouchableOpacity>
+      </View>
     );
-  }, []);
-
-  const headerAnimatedStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: headerScale.value }],
-  }));
+  };
 
   return (
     <SafeAreaView style={styles.container}>
-      <Animated.View style={[styles.header, headerAnimatedStyle]}>
-        <View style={styles.headerTop}>
-          <Text style={styles.logo}>MediSure</Text>
-          <View style={styles.profile}>
-            <Text style={styles.profileText}>JS</Text>
+      <StatusBar barStyle="light-content" />
+      <ScrollView contentContainerStyle={styles.scrollContainer}>
+        {/* Header */}
+        <LinearGradient
+          colors={['#4361ee', '#3a0ca3']}
+          style={styles.header}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
+        >
+          <View style={styles.headerTop}>
+            <Text style={styles.logo}>MediSure</Text>
+            <View style={styles.profile}>
+              <Text style={styles.profileText}>JS</Text>
+            </View>
           </View>
+          <Text style={styles.greeting}>Good morning, John</Text>
+          <Text style={styles.date}>{formattedDate}</Text>
+        </LinearGradient>
+
+        {/* Next Dose */}
+        <View style={styles.nextDose}>
+          <View style={styles.nextDoseTitle}>
+            <Text style={styles.nextDoseHeading}>Upcoming Dose</Text>
+            <LinearGradient
+              colors={['#4361ee', '#3a0ca3']}
+              style={styles.timePill}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+            >
+              <Text style={styles.timePillText}>9:00 AM</Text>
+            </LinearGradient>
+          </View>
+
+          {upcomingMedications.map(renderMedicationCard)}
         </View>
-        <Text style={styles.greeting}>Good morning, John</Text>
-        <Text style={styles.date}>{formattedDate}</Text>
-      </Animated.View>
-      
-      <UpcomingMedicinesComponent medicines={medicines} />
-      
-      <Text style={styles.sectionTitle}>Today's Schedule</Text>
-      
-      <ScrollView style={styles.scheduleContainer} contentContainerStyle={styles.scheduleContent}>
-        <TimeSlot time="8:00 AM" medicines={medicines} />
-        <TimeSlot time="9:00 AM" medicines={medicines} />
-        <TimeSlot time="1:00 PM" medicines={medicines} />
-        <TimeSlot time="8:00 PM" medicines={medicines} />
+
+        {/* Today's Schedule */}
+        <Text style={styles.sectionTitle}>Today's Schedule</Text>
+        <View style={styles.todaySchedule}>
+          {todaySchedule.map(renderTimeSlot)}
+        </View>
+
+        {/* Add Button - Floating Action Button */}
+        <TouchableOpacity activeOpacity={0.8}>
+          <LinearGradient
+            colors={['#4361ee', '#3a0ca3']}
+            style={styles.fab}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+          >
+            <Text style={styles.fabText}>+</Text>
+          </LinearGradient>
+        </TouchableOpacity>
       </ScrollView>
-      
-      <TouchableOpacity style={styles.fab}>
-        <Plus size={28} color="#ffffff" />
-      </TouchableOpacity>
-      
+
+      {/* Bottom Navigation */}
       <View style={styles.bottomNav}>
-        <TouchableOpacity 
-          style={[styles.navItem, activeTab === 'home' && styles.activeNavItem]} 
-          onPress={() => setActiveTab('home')}
-        >
-          <Home size={24} color={activeTab === 'home' ? '#4361ee' : '#94a3b8'} />
-          <Text style={[styles.navText, activeTab === 'home' && styles.activeNavText]}>Home</Text>
+        <TouchableOpacity style={[styles.navItem, styles.navActive]}>
+          <Text style={[styles.navIcon, styles.navActiveText]}>🏠</Text>
+          <Text style={[styles.navText, styles.navActiveText]}>Home</Text>
         </TouchableOpacity>
-        
-        <TouchableOpacity 
-          style={[styles.navItem, activeTab === 'meds' && styles.activeNavItem]} 
-          onPress={() => setActiveTab('meds')}
-        >
-          <Text style={[styles.navIcon, activeTab === 'meds' && styles.activeNavText]}>💊</Text>
-          <Text style={[styles.navText, activeTab === 'meds' && styles.activeNavText]}>Meds</Text>
+        <TouchableOpacity style={styles.navItem}>
+          <Text style={styles.navIcon}>💊</Text>
+          <Text style={styles.navText}>Meds</Text>
         </TouchableOpacity>
-        
-        <TouchableOpacity 
-          style={[styles.navItem, activeTab === 'calendar' && styles.activeNavItem]} 
-          onPress={() => setActiveTab('calendar')}
-        >
-          <Calendar size={24} color={activeTab === 'calendar' ? '#4361ee' : '#94a3b8'} />
-          <Text style={[styles.navText, activeTab === 'calendar' && styles.activeNavText]}>Calendar</Text>
+        <TouchableOpacity style={styles.navItem}>
+          <Text style={styles.navIcon}>📅</Text>
+          <Text style={styles.navText}>Calendar</Text>
         </TouchableOpacity>
-        
-        <TouchableOpacity 
-          style={[styles.navItem, activeTab === 'reports' && styles.activeNavItem]} 
-          onPress={() => setActiveTab('reports')}
-        >
-          <PieChart size={24} color={activeTab === 'reports' ? '#4361ee' : '#94a3b8'} />
-          <Text style={[styles.navText, activeTab === 'reports' && styles.activeNavText]}>Reports</Text>
+        <TouchableOpacity style={styles.navItem}>
+          <Text style={styles.navIcon}>📊</Text>
+          <Text style={styles.navText}>Reports</Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -208,9 +243,11 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f8fafc',
   },
+  scrollContainer: {
+    paddingBottom: 100,
+  },
   header: {
-    padding: 28,
-    backgroundColor: '#4361ee',
+    padding: 24,
     borderBottomLeftRadius: 24,
     borderBottomRightRadius: 24,
   },
@@ -221,8 +258,8 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   logo: {
-    fontSize: 22,
     fontWeight: '700',
+    fontSize: 22,
     color: 'white',
     letterSpacing: -0.5,
   },
@@ -230,11 +267,16 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    borderRadius: 22,
     borderWidth: 2,
     borderColor: 'rgba(255, 255, 255, 0.9)',
+    borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    elevation: 4,
   },
   profileText: {
     color: 'white',
@@ -249,10 +291,10 @@ const styles = StyleSheet.create({
     letterSpacing: -0.5,
   },
   date: {
-    fontSize: 15,
     color: 'rgba(255, 255, 255, 0.9)',
+    fontSize: 15,
   },
-  nextDoseContainer: {
+  nextDose: {
     backgroundColor: 'white',
     borderRadius: 18,
     padding: 24,
@@ -263,7 +305,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.08,
     shadowRadius: 20,
-    elevation: 5,
+    elevation: 8,
   },
   nextDoseTitle: {
     flexDirection: 'row',
@@ -277,10 +319,14 @@ const styles = StyleSheet.create({
     color: '#1e293b',
   },
   timePill: {
-    backgroundColor: '#4361ee',
-    paddingHorizontal: 14,
-    paddingVertical: 6,
     borderRadius: 24,
+    padding: 6,
+    paddingHorizontal: 14,
+    shadowColor: '#4361ee',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
   },
   timePillText: {
     color: 'white',
@@ -305,10 +351,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 18,
+    shadowColor: '#e0e7ff',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.5,
+    shadowRadius: 10,
+    elevation: 2,
   },
   medIconText: {
     fontSize: 22,
-    color: '#4361ee',
   },
   medDetails: {
     flex: 1,
@@ -324,30 +374,32 @@ const styles = StyleSheet.create({
     color: '#64748b',
   },
   medStatus: {
-    backgroundColor: '#4361ee',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
     borderRadius: 12,
+    padding: 8,
+    paddingHorizontal: 14,
+    shadowColor: '#4361ee',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 2,
   },
   medStatusText: {
     color: 'white',
     fontSize: 13,
     fontWeight: '500',
+    textAlign: 'center',
   },
   sectionTitle: {
+    paddingHorizontal: 24,
     marginTop: 34,
     marginBottom: 18,
-    marginLeft: 24,
     fontSize: 19,
     fontWeight: '600',
     color: '#1e293b',
     letterSpacing: -0.5,
   },
-  scheduleContainer: {
+  todaySchedule: {
     paddingHorizontal: 20,
-  },
-  scheduleContent: {
-    paddingBottom: 100,
   },
   timeSlot: {
     flexDirection: 'row',
@@ -367,15 +419,20 @@ const styles = StyleSheet.create({
     flex: 1,
     width: 2,
     backgroundColor: '#e2e8f0',
+    alignItems: 'center',
   },
   timeCircle: {
     position: 'absolute',
     top: 0,
-    left: -5,
     width: 12,
     height: 12,
     borderRadius: 6,
     backgroundColor: '#4361ee',
+    shadowColor: '#4361ee',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 3,
   },
   timeCard: {
     flex: 1,
@@ -383,20 +440,20 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 18,
     marginLeft: 18,
-    borderWidth: 1,
-    borderColor: '#f1f5f9',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.04,
     shadowRadius: 12,
     elevation: 2,
+    borderWidth: 1,
+    borderColor: '#f1f5f9',
   },
-  completedTimeCard: {
+  completedCard: {
     borderLeftWidth: 4,
     borderLeftColor: '#10b981',
     backgroundColor: '#f0fdf4',
   },
-  missedTimeCard: {
+  missedCard: {
     borderLeftWidth: 4,
     borderLeftColor: '#ef4444',
     backgroundColor: '#fef2f2',
@@ -416,22 +473,27 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#f1f5f9',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
     borderRadius: 20,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
     borderWidth: 1,
     borderColor: 'rgba(226, 232, 240, 0.6)',
-  },
-  pillText: {
-    fontSize: 13,
-    fontWeight: '500',
-    color: '#334155',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.03,
+    shadowRadius: 4,
+    elevation: 1,
   },
   pillDot: {
     width: 10,
     height: 10,
     borderRadius: 5,
     marginRight: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
   },
   blueDot: {
     backgroundColor: '#4361ee',
@@ -442,40 +504,49 @@ const styles = StyleSheet.create({
   greenDot: {
     backgroundColor: '#10b981',
   },
+  pillText: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: '#334155',
+  },
   fab: {
     position: 'absolute',
-    bottom: 90,
+    bottom: 80,
     right: 24,
     width: 60,
     height: 60,
     borderRadius: 30,
-    backgroundColor: '#4361ee',
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#4361ee',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.4,
     shadowRadius: 20,
-    elevation: 6,
+    elevation: 8,
+  },
+  fabText: {
+    color: 'white',
+    fontSize: 28,
+    fontWeight: '300',
   },
   bottomNav: {
     position: 'absolute',
     bottom: 0,
-    left: 0,
-    right: 0,
+    width: '100%',
     flexDirection: 'row',
     justifyContent: 'space-around',
     backgroundColor: 'white',
-    paddingVertical: 16,
     borderTopWidth: 1,
     borderTopColor: '#f1f5f9',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    paddingVertical: 16,
+    paddingHorizontal: 10,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: -4 },
     shadowOpacity: 0.04,
     shadowRadius: 10,
-    elevation: 3,
+    elevation: 4,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
   },
   navItem: {
     alignItems: 'center',
@@ -483,7 +554,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 12,
   },
-  activeNavItem: {
+  navActive: {
     backgroundColor: '#eff6ff',
   },
   navIcon: {
@@ -495,7 +566,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#94a3b8',
   },
-  activeNavText: {
+  navActiveText: {
     color: '#4361ee',
     fontWeight: '500',
   },
