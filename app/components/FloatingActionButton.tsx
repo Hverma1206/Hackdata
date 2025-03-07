@@ -42,6 +42,8 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 36,
     fontWeight: '300',
+    bottom: 3,
+    right: 1
   },
   fabContainer: {
     position: 'absolute',

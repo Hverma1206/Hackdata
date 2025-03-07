@@ -80,7 +80,7 @@ const styles = StyleSheet.create({
     letterSpacing: -0.5,
   },
   date: {
-    color: 'rgba(255, 255, 255, 0.9)',
+    opacity: 0,
     fontSize: 15,
   },
 });

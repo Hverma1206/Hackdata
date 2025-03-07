@@ -1,6 +1,8 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { Animated, Easing } from 'react-native';
+import { useEffect, useRef } from 'react';
 
 interface Pill {
   name: string;
@@ -23,70 +25,124 @@ interface TimeSlotProps {
   onUpdateStatus: (id: string, status: 'taken' | 'missed') => void;
 }
 
-const TimeSlot: React.FC<TimeSlotProps> = ({ 
-  slot, 
-  onToggleOptions, 
-  onUpdateStatus 
+const TimeSlot: React.FC<TimeSlotProps> = ({
+  slot,
+  onToggleOptions,
+  onUpdateStatus,
 }) => {
   const cardStyle = [
     styles.timeCard,
     slot.completed && styles.completedCard,
     slot.missed && styles.missedCard,
   ];
+  const dropdownAnim = useRef(new Animated.Value(0)).current;
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(dropdownAnim, {
+        toValue: slot.showOptions ? 1 : 0,
+        duration: 250,
+        easing: Easing.out(Easing.back(1.5)),
+        useNativeDriver: true,
+      }),
+      Animated.sequence([
+        Animated.timing(scaleAnim, {
+          toValue: slot.showOptions ? 1.03 : 1,
+          duration: 150,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+        Animated.timing(scaleAnim, {
+          toValue: 1,
+          duration: 150,
+          easing: Easing.inOut(Easing.cubic),
+          useNativeDriver: true,
+        })
+      ])
+    ]).start();
+  }, [slot.showOptions]);
+
+  const dropdownStyle = {
+    opacity: dropdownAnim,
+    transform: [
+      {
+        translateY: dropdownAnim.interpolate({
+          inputRange: [0, 1],
+          outputRange: [-20, 0],
+        }),
+      },
+      {
+        scale: dropdownAnim.interpolate({
+          inputRange: [0, 1],
+          outputRange: [0.95, 1],
+        }),
+      }
+    ],
+  };
+
+  const cardAnimStyle = {
+    transform: [{ scale: scaleAnim }]
+  };
 
   return (
     <View style={styles.timeSlot}>
       <View style={styles.timeIndicator}>
         <Text style={styles.timeText}>{slot.time}</Text>
         <View style={styles.timeLine}>
-          <View style={[styles.timeCircle, 
-            slot.completed && styles.completedCircle,
-            slot.missed && styles.missedCircle
-          ]} />
+          <View
+            style={[
+              styles.timeCircle,
+              slot.completed && styles.completedCircle,
+              slot.missed && styles.missedCircle,
+            ]}
+          />
         </View>
       </View>
 
       <View style={styles.slotContainer}>
-        <TouchableOpacity 
-          style={cardStyle} 
-          activeOpacity={0.7}
-          onPress={() => onToggleOptions(slot.id)}
-        >
-          <View style={styles.cardHeader}>
-            <Text style={styles.timeCardTitle}>{slot.title}</Text>
-            {slot.completed && (
-              <View style={styles.statusIndicator}>
-                <Text style={styles.statusText}>Taken ✓</Text>
-              </View>
-            )}
-            {slot.missed && (
-              <View style={[styles.statusIndicator, styles.missedIndicator]}>
-                <Text style={styles.statusText}>Missed ✗</Text>
-              </View>
-            )}
-          </View>
-          
-          <View style={styles.pills}>
-            {slot.pills.map((pill, pillIndex) => (
-              <View key={pillIndex} style={styles.pill}>
-                <View
-                  style={[
-                    styles.pillDot,
-                    pill.dotColor === 'blue' && styles.blueDot,
-                    pill.dotColor === 'red' && styles.redDot,
-                    pill.dotColor === 'green' && styles.greenDot,
-                  ]}
-                />
-                <Text style={styles.pillText}>{pill.name}</Text>
-              </View>
-            ))}
-          </View>
-        </TouchableOpacity>
+        {/* <Animated.View style={cardAnimStyle}> */}
+          <TouchableOpacity
+            style={cardStyle}
+            activeOpacity={0.8}
+            onPress={() => onToggleOptions(slot.id)}
+          >
+            <View style={styles.cardHeader}>
+              <Text style={styles.timeCardTitle}>{slot.title}</Text>
+              {slot.completed && (
+                <View style={styles.statusIndicator}>
+                  <Text style={styles.statusText}>Taken ✓</Text>
+                </View>
+              )}
+              {slot.missed && (
+                <View style={[styles.statusIndicator, styles.missedIndicator]}>
+                  <Text style={styles.statusText}>Missed ✗</Text>
+                </View>
+              )}
+            </View>
+
+            <View style={styles.pills}>
+              {slot.pills.map((pill, pillIndex) => (
+                <View key={pillIndex} style={styles.pill}>
+                  <View
+                    style={[
+                      styles.pillDot,
+                      pill.dotColor === 'blue' && styles.blueDot,
+                      pill.dotColor === 'red' && styles.redDot,
+                      pill.dotColor === 'green' && styles.greenDot,
+                    ]}
+                  />
+                  <Text style={styles.pillText}>{pill.name}</Text>
+                </View>
+              ))}
+            </View>
+          </TouchableOpacity>
+{/*         </Animated.View> */}
 
         {/* Dropdown options */}
         {slot.showOptions && (
-          <View style={styles.optionsDropdown}>
-            <TouchableOpacity 
+          <Animated.View style={[styles.optionsDropdown, dropdownStyle]}>
+            <TouchableOpacity
               style={styles.optionButton}
               onPress={() => onUpdateStatus(slot.id, 'taken')}
             >
@@ -96,11 +152,16 @@ const TimeSlot: React.FC<TimeSlotProps> = ({
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
               >
-                <Text style={styles.optionText}>Mark as Taken</Text>
+                <View style={styles.optionContent}>
+                  <View style={styles.checkIcon}>
+                    <Text style={styles.iconText}>✓</Text>
+                  </View>
+                  <Text style={styles.optionText}>Mark as Taken</Text>
+                </View>
               </LinearGradient>
             </TouchableOpacity>
-            
-            <TouchableOpacity 
+
+            <TouchableOpacity
               style={styles.optionButton}
               onPress={() => onUpdateStatus(slot.id, 'missed')}
             >
@@ -110,10 +171,15 @@ const TimeSlot: React.FC<TimeSlotProps> = ({
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
               >
-                <Text style={styles.optionText}>Mark as Missed</Text>
+                <View style={styles.optionContent}>
+                  <View style={styles.missedIcon}>
+                    <Text style={styles.iconText}>✗</Text>
+                  </View>
+                  <Text style={styles.optionText}>Mark as Missed</Text>
+                </View>
               </LinearGradient>
             </TouchableOpacity>
-          </View>
+          </Animated.View>
         )}
       </View>
     </View>
@@ -212,23 +278,55 @@ const styles = StyleSheet.create({
   },
   optionsDropdown: {
     marginLeft: 18,
-    marginTop: 8,
-    gap: 8,
+    marginTop: 12,
+    gap: 0,
+    borderRadius: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 4,
   },
   optionButton: {
-    borderRadius: 12,
+    borderRadius: 14,
     overflow: 'hidden',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
+    elevation: 3,
+    padding: 5,
   },
   optionGradient: {
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 14,
+    borderRadius: 14,
+  },
+  optionContent: {
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    
+  },
+  checkIcon: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+  },
+  missedIcon: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+  },
+  iconText: {
+    color: 'white',
+    fontWeight: 'bold',
+    fontSize: 14,
   },
   optionText: {
     color: 'white',
